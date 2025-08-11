@@ -71,6 +71,12 @@ export const productController = {
         req.body,
         { new: true }
       );
+      // If the description was updated, regenerate the embedding
+      if (req.body.description && product) {
+        const embedding = await openAIService.generateEmbedding(req.body.description);
+        product.embedding = embedding;
+        await product.save();
+      }
       if (!product) {
         return res.status(404).json({ error: 'Product not found' });
       }
