@@ -50,6 +50,11 @@ export const productController = {
   createProduct: (async (req, res) => {
     try {
       const product = new Product(req.body);
+      // Generate embedding if description is present
+      if (product.description) {
+        const embedding = await openAIService.generateEmbedding(product.description);
+        product.embedding = embedding;
+      }
       await product.save();
       res.status(201).json(product);
     } catch (error) {
