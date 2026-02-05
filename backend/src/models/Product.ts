@@ -6,6 +6,7 @@ export interface IProduct extends Document {
   price: number;
   category: string;
   imageUrl: string;
+  embedding?: number[];
   attributes: Record<string, any>;
   createdAt: Date;
   updatedAt: Date;
@@ -39,6 +40,13 @@ const ProductSchema = new Schema({
     type: Map,
     of: Schema.Types.Mixed,
     default: {},
+  },
+  embedding: {
+    type: [Number],
+    required: false,
+    // Note: Create a vector search index on this field in MongoDB Atlas
+    // For example:
+    // { "name": "vector_index", "type": "vector", "fields": [{ "type": "vector", "path": "embedding", "numDimensions": 1536, "similarity": "cosine" }] }
   },
 }, {
   timestamps: true,

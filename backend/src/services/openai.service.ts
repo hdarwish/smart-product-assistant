@@ -201,6 +201,19 @@ class OpenAIService {
     return { $and: conditions };
   }
 
+  async generateEmbedding(text: string): Promise<number[]> {
+    try {
+      const response = await this.openai.embeddings.create({
+        model: 'text-embedding-ada-002',
+        input: text,
+      });
+      return response.data[0].embedding;
+    } catch (error) {
+      logger.error('Error generating embedding:', error);
+      throw new Error('Failed to generate embedding');
+    }
+  }
+
   async generateProductMatches(query: string, products: any[]): Promise<any[]> {
     try {
       const completion = await this.openai.chat.completions.create({

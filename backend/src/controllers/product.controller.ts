@@ -50,6 +50,11 @@ export const productController = {
   createProduct: (async (req, res) => {
     try {
       const product = new Product(req.body);
+      // Generate embedding if description is present
+      if (product.description) {
+        const embedding = await openAIService.generateEmbedding(product.description);
+        product.embedding = embedding;
+      }
       await product.save();
       res.status(201).json(product);
     } catch (error) {
@@ -60,12 +65,19 @@ export const productController = {
 
   // Update product
   updateProduct: (async (req, res) => {
-    try {
+    try {      
+      const productData = req.body;
+      // If the description is being updated, generate a new embedding
+      if (productData.description) {
+        productData.embedding = await openAIService.generateEmbedding(productData.description);
+      }
+
       const product = await Product.findByIdAndUpdate(
         req.params.id,
-        req.body,
+        productData,
         { new: true }
       );
+
       if (!product) {
         return res.status(404).json({ error: 'Product not found' });
       }
@@ -101,15 +113,22 @@ export const productController = {
       // Extract search attributes using OpenAI
       const searchAttributes = await openAIService.extractSearchAttributes(query);
       logger.debug('Extracted search attributes: %j', searchAttributes);
+      
+      // Generate embedding for the search query for vector search
+      const queryEmbedding = await openAIService.generateEmbedding(query);
 
-      // Build MongoDB query using the extracted attributes
-      const mongoQuery = openAIService.buildMongoQuery(searchAttributes);
-      logger.debug('MongoDB query: %j', mongoQuery);
+      // Build MongoDB aggregation pipeline
+      const pipeline = openAIService.buildMongoQuery(searchAttributes, queryEmbedding);
+      logger.debug('MongoDB aggregation pipeline: %j', pipeline);
 
-      // Execute search with the query
-      const products = await Product.find(mongoQuery)
-        .select('name description price category imageUrl attributes')
-        .sort({ price: 1 }) // Sort by price ascending as a default sort
+      // Execute search with the aggregation pipeline
+      const products = await Product.aggregate(pipeline)
+        .limit(10);
+
+      // Fallback to text search if no results from vector search
+      if (products.length === 0) {
+        const textSearchPipeline = openAIService.buildMongoQuery(searchAttributes);
+        const textSearchResults = await Product.aggregate(textSearchPipeline)
         .limit(10);
 
       logger.debug('Found %d products', products.length);
@@ -120,6 +139,14 @@ export const productController = {
           products: [],
           message: 'No products found matching your criteria'
         });
+        
+        res.json({
+          query,
+          searchAttributes,
+          total: textSearchResults.length,
+          products: textSearchResults
+        });
+        return;
       }
 
       res.json({
@@ -135,3 +162,4 @@ export const productController = {
     }
   }) as RequestHandler
 }; 
+
